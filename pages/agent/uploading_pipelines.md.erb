@@ -1,42 +1,32 @@
 # Uploading Build Pipelines
 
-The Buildkite Agent’s `pipeline upload` command provides you with a way of storing build pipelines within source control, and have them uploaded to builds at runtime.
+The Buildkite Agent’s `pipeline upload` command provides you with a way of storing build pipeline configuration files within your source control, either as static files or dynamically generated from your own scripts.
 
 <%= toc %>
 
-## Usage in Buildkite
+## Getting started
 
-Start by create the `.buildkite/pipeline.yml` file, add steps to it using the example below as a guide. You'll want to replicate your current steps in the configuration file format. Once you've done that, commit and push that file to your repository.
+For example, say you had the following `.buildkite/pipeline.yml` in your project repository:
 
-After the file has been pushed, login to Buildkite, and go to the Pipeline Settings for the project you'd like to use the configuration file in. Replace the entire pipeline with 1 step, that calls the command: `buildkite-agent pipeline upload`. When the build runs, this first step will run that command, upload the pipeline to Buildkite, at which point Buildkite will parse the config, and apply the steps to the currently running build.
-
-If you have alot of active branches in development, and don't want to spend the time merging in the configuration file to all of them, there is a way of adding the file in a backwards compatible manner.
-
-Create a file in your repository and call it `upload-pipeline-to-buildkite.sh`
-
-```bash
-#!/bin/bash
-
-if [ -f ".buildkite/pipeline.yml" ];
-then
-  echo ".buildkite/pipeline.yml found, will replace current pipeline with steps from it"
-  buildkite-agent pipeline upload --replace
-else
-  echo "No .buildkite/pipeline.yml file, using existing steps"
-fi
+```yml
+steps:
+  - name: Example Test
+    command: echo "yeah!"
 ```
 
-`chmod +x upload-pipeline-to-buildkite.sh` the file, then commit/push to your repository. Now, instead of replacing your entire pipeline with a call to `buildkite-agent pipeline upload`, just prefix the pipeline with a script step that calls the `upload-pipeline-to-buildkite.sh` file we created earlier, then follow this step with a waiter step.
+To be able to use this pipeline you'd update your project configuration to have the following step:
 
-So your pipeline would look something like this:
+_TODO: screenshot of upload step configuration_
 
-```
-[ upload-pipeline-to-buildkite.sh ] > [ existing pipeline... ]
-```
+Running a build first trigger the pipeline upload job:
 
-The main difference here is that we only upload the file if it exists, and we upload the pipeline using the `--replace` flag. `--replace` will remove any scheduled steps, and replace them with the steps in the configuration file. Using this method, the branch you first commited the configuration file to will use the new steps, and any existing branch will continue to use the steps defined in the Buildkite UI.
+_TODO: screenshot of a build with the single pipeline upload job_
 
-## Uploading Pipelines
+Which would upload the rest of the pipeline config:
+
+_TODO: screenshot of the build with an updated pipeline_
+
+## Uploading pipelines
 
 Use this command in your build scripts to upload pipelines to Buildkite.
 
@@ -132,3 +122,31 @@ steps:
 When throttling the concurrency for a job, we need a way to group the jobs across the pipeline to determine how many of that type are currently running. We do this by creating a "concurrency group identifier" and attach it to all jobs requiring concurrency. Using this method we can query to find out how many of those jobs are running at any one time, and throttle accordingly when a job is scheduled.
 
 When creating steps via the Buildkite UI, we use the jobs’ step UUID as the identifier. However, when creating steps using the `pipeline upload` command, there isn’t a way of creating this identifier, as the step is anonymous and doesn’t have a UUID. In this case, we ask that you provide a unique value to the `concurrency_group` property, which we use as the identifier.
+
+## Migrating existing projects
+
+If you want to migrate a checked in pipeline without interrupting existing branches, you can create a script that can choose to use the old steps defined in your project settings if the build pipeline file is not yet present.
+
+To do this, create a `script/upload-pipeline-to-buildkite.sh` file in your repository, for example:
+
+```bash
+#!/bin/bash
+
+if [ -f ".buildkite/pipeline.yml" ];
+then
+  echo ".buildkite/pipeline.yml found, will replace current pipeline with steps from it"
+  buildkite-agent pipeline upload --replace
+else
+  echo "No .buildkite/pipeline.yml file, using existing steps"
+fi
+```
+
+`chmod +x upload-pipeline-to-buildkite.sh` the file, then commit/push to your repository. Now, instead of replacing your entire pipeline with a call to `buildkite-agent pipeline upload`, just prefix the pipeline with a script step that calls the `upload-pipeline-to-buildkite.sh` file we created earlier, then follow this step with a waiter step.
+
+So your pipeline would look something like this:
+
+```
+[ upload-pipeline-to-buildkite.sh ] > [ existing pipeline... ]
+```
+
+The main difference here is that we only upload the file if it exists, and we upload the pipeline using the `--replace` flag. `--replace` will remove any scheduled steps, and replace them with the steps in the configuration file. Using this method, the branch you first commited the configuration file to will use the new steps, and any existing branch will continue to use the steps defined in the Buildkite UI.
